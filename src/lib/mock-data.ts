@@ -111,3 +111,114 @@ export const mockReconciliationData: ReconciliationRecord[] = [
     valorConvenio: 180.0,
   },
 ]
+
+export interface ComparisonRecord {
+  id: string
+  paciente: string
+  procedimento: string
+  valor: number
+}
+
+export interface ExternalRecord {
+  id: string
+  paciente: string
+  procedimento: string
+  repasse: number
+}
+
+export const mockInternalData: ComparisonRecord[] = [
+  {
+    id: 'INT-001',
+    paciente: 'Ana Clara Albuquerque',
+    procedimento: 'Restauração Resina',
+    valor: 155.0,
+  },
+  {
+    id: 'INT-002',
+    paciente: 'Carlos Eduardo Mendes',
+    procedimento: 'Limpeza Profilática',
+    valor: 80.0,
+  },
+  {
+    id: 'INT-003',
+    paciente: 'Beatriz Souza Campos',
+    procedimento: 'Extração Simples',
+    valor: 210.5,
+  },
+  {
+    id: 'INT-004',
+    paciente: 'Fernando Henrique Silva',
+    procedimento: 'Tratamento de Canal',
+    valor: 450.0,
+  },
+  { id: 'INT-005', paciente: 'Marina Luzia Costa', procedimento: 'Avaliação Inicial', valor: 50.0 },
+  {
+    id: 'INT-006',
+    paciente: 'Roberto Ferreira',
+    procedimento: 'Clareamento Caseiro',
+    valor: 320.0,
+  },
+  {
+    id: 'INT-007',
+    paciente: 'Juliana Paes Andrade',
+    procedimento: 'Avaliação Inicial',
+    valor: 50.0,
+  },
+  {
+    id: 'INT-008',
+    paciente: 'Vitor Hugo Moreira',
+    procedimento: 'Coroa de Porcelana',
+    valor: 890.0,
+  },
+]
+
+export const mockExternalData: ExternalRecord[] = [
+  {
+    id: 'EXT-001',
+    paciente: 'Ana Clara Albuquerque',
+    procedimento: 'Restauração Resina',
+    repasse: 155.0,
+  },
+  {
+    id: 'EXT-002',
+    paciente: 'Carlos Eduardo Mendes',
+    procedimento: 'Limpeza Profilática',
+    repasse: 40.0,
+  },
+  {
+    id: 'EXT-003',
+    paciente: 'Beatriz Souza Campos',
+    procedimento: 'Extração Simples',
+    repasse: 210.5,
+  },
+  {
+    id: 'EXT-004',
+    paciente: 'Fernando Henrique Silva',
+    procedimento: 'Tratamento de Canal',
+    repasse: 350.0,
+  },
+  {
+    id: 'EXT-005',
+    paciente: 'Marina Luzia Costa',
+    procedimento: 'Avaliação Inicial',
+    repasse: 50.0,
+  },
+  {
+    id: 'EXT-006',
+    paciente: 'Roberto Ferreira',
+    procedimento: 'Clareamento Caseiro',
+    repasse: 320.0,
+  },
+  {
+    id: 'EXT-007',
+    paciente: 'Juliana Paes Andrade',
+    procedimento: 'Avaliação Inicial',
+    repasse: 25.0,
+  },
+  {
+    id: 'EXT-008',
+    paciente: 'Vitor Hugo Moreira',
+    procedimento: 'Coroa de Porcelana',
+    repasse: 890.0,
+  },
+]
