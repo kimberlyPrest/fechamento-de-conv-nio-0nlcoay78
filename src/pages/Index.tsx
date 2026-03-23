@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,24 +12,37 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UploadCard } from '@/components/UploadCard'
 import { ComparisonTab } from '@/components/ComparisonTab'
-import { mockReconciliationData } from '@/lib/mock-data'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
+import { supabase } from '@/lib/supabase/client'
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('')
+  const [procedimentos, setProcedimentos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('procedimentos_realizados')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (data && !error) setProcedimentos(data)
+        setLoading(false)
+      })
+  }, [])
 
   const filteredData = useMemo(() => {
     const term = searchTerm.toLowerCase()
-    if (!term) return mockReconciliationData
+    if (!term) return procedimentos
 
-    return mockReconciliationData.filter(
+    return procedimentos.filter(
       (record) =>
-        record.paciente.toLowerCase().includes(term) ||
-        record.procedimento.toLowerCase().includes(term) ||
-        record.plano.toLowerCase().includes(term),
+        record.nome_paciente?.toLowerCase().includes(term) ||
+        record.nome_procedimento?.toLowerCase().includes(term) ||
+        record.plano?.toLowerCase().includes(term),
     )
-  }, [searchTerm])
+  }, [searchTerm, procedimentos])
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 animate-fade-in-up">
@@ -72,7 +85,9 @@ const Index = () => {
                   Registros Processados
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {filteredData.length} procedimento(s) encontrado(s).
+                  {loading
+                    ? 'Carregando registros...'
+                    : `${filteredData.length} procedimento(s) encontrado(s).`}
                 </p>
               </div>
               <div className="relative w-full sm:w-72">
@@ -105,10 +120,16 @@ const Index = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.length === 0 ? (
+                  {loading ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                        Nenhum registro encontrado para "{searchTerm}".
+                        Carregando...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                        Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -116,20 +137,22 @@ const Index = () => {
                       <TableRow key={record.id} className="group cursor-default transition-colors">
                         <TableCell>
                           <Badge variant="outline" className="font-medium bg-white">
-                            {record.plano}
+                            {record.plano || '-'}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium text-slate-900">
-                          {record.paciente}
+                          {record.nome_paciente || '-'}
                         </TableCell>
-                        <TableCell className="text-slate-600">{record.procedimento}</TableCell>
-                        <TableCell className="text-slate-600">{record.regiao}</TableCell>
-                        <TableCell className="text-slate-600">{record.face}</TableCell>
                         <TableCell className="text-slate-600">
-                          {formatDate(record.dataFinalizacao)}
+                          {record.nome_procedimento || record.procedimento_codigo}
+                        </TableCell>
+                        <TableCell className="text-slate-600">{record.regiao || '-'}</TableCell>
+                        <TableCell className="text-slate-600">{record.face || '-'}</TableCell>
+                        <TableCell className="text-slate-600">
+                          {formatDate(record.data_finalizacao)}
                         </TableCell>
                         <TableCell className="text-right font-medium text-slate-900">
-                          {formatCurrency(record.valorConvenio)}
+                          {formatCurrency(record.valor_convenio)}
                         </TableCell>
                       </TableRow>
                     ))

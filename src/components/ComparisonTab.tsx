@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
 import {
   Table,
@@ -9,29 +9,57 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { mockInternalData, mockExternalData } from '@/lib/mock-data'
 import { formatCurrency } from '@/lib/formatters'
+import { supabase } from '@/lib/supabase/client'
 
 export function ComparisonTab() {
+  const [procedimentos, setProcedimentos] = useState<any[]>([])
+  const [faturamentos, setFaturamentos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('procedimentos_realizados').select('*'),
+      supabase.from('faturamento_plano').select('*'),
+    ]).then(([procRes, fatRes]) => {
+      if (procRes.data) setProcedimentos(procRes.data)
+      if (fatRes.data) setFaturamentos(fatRes.data)
+      setLoading(false)
+    })
+  }, [])
+
   const discrepancies = useMemo(() => {
-    return mockInternalData
+    return procedimentos
       .map((internal) => {
-        const external = mockExternalData.find(
-          (e) => e.paciente === internal.paciente && e.procedimento === internal.procedimento,
+        const external = faturamentos.find(
+          (e) =>
+            e.nome_paciente === internal.nome_paciente &&
+            e.procedimento_codigo === internal.procedimento_codigo,
         )
         const repasse = external?.repasse ?? 0
+        const valor = Number(internal.valor_convenio ?? 0)
+        const dif = valor - Number(repasse)
+
         return {
           id: internal.id,
-          paciente: internal.paciente,
-          procedimento: internal.procedimento,
-          valor: internal.valor,
-          repasse,
-          diferenca: internal.valor - repasse,
-          hasDiscrepancy: !external || internal.valor !== repasse,
+          paciente: internal.nome_paciente,
+          procedimento: internal.nome_procedimento || internal.procedimento_codigo,
+          valor: valor,
+          repasse: Number(repasse),
+          diferenca: dif,
+          hasDiscrepancy: !external || valor !== Number(repasse),
         }
       })
       .filter((item) => item.hasDiscrepancy)
-  }, [])
+  }, [procedimentos, faturamentos])
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-slate-200">
+        <p className="text-sm text-slate-500 animate-pulse">Carregando dados para comparação...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,12 +82,23 @@ export function ComparisonTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockInternalData.map((row) => (
+                  {procedimentos.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                        Nenhum dado encontrado.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {procedimentos.map((row) => (
                     <TableRow key={row.id} className="transition-colors">
-                      <TableCell className="font-medium text-slate-900">{row.paciente}</TableCell>
-                      <TableCell className="text-slate-600">{row.procedimento}</TableCell>
+                      <TableCell className="font-medium text-slate-900">
+                        {row.nome_paciente}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {row.nome_procedimento || row.procedimento_codigo}
+                      </TableCell>
                       <TableCell className="text-right text-slate-900">
-                        {formatCurrency(row.valor)}
+                        {formatCurrency(row.valor_convenio)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -89,10 +128,19 @@ export function ComparisonTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockExternalData.map((row) => (
+                  {faturamentos.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                        Nenhum dado encontrado.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {faturamentos.map((row) => (
                     <TableRow key={row.id} className="transition-colors">
-                      <TableCell className="font-medium text-slate-900">{row.paciente}</TableCell>
-                      <TableCell className="text-slate-600">{row.procedimento}</TableCell>
+                      <TableCell className="font-medium text-slate-900">
+                        {row.nome_paciente}
+                      </TableCell>
+                      <TableCell className="text-slate-600">{row.procedimento_codigo}</TableCell>
                       <TableCell className="text-right text-slate-900">
                         {formatCurrency(row.repasse)}
                       </TableCell>
@@ -110,7 +158,9 @@ export function ComparisonTab() {
         <CardHeader className="border-b border-red-100 bg-red-50/50 pb-4">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-red-600" />
-            <CardTitle className="text-lg tracking-tight text-red-900">Divergências</CardTitle>
+            <CardTitle className="text-lg tracking-tight text-red-900">
+              Divergências Encontradas
+            </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -133,7 +183,7 @@ export function ComparisonTab() {
                 {discrepancies.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      Nenhuma divergência encontrada.
+                      Nenhuma divergência encontrada. Valores compatíveis.
                     </TableCell>
                   </TableRow>
                 ) : (

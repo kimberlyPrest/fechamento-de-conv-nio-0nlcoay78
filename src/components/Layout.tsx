@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, Settings, CircleUser, Activity } from 'lucide-react'
+import { LayoutDashboard, FileText, Settings, CircleUser, Activity, LogOut } from 'lucide-react'
 import {
   SidebarProvider,
   Sidebar,
@@ -12,6 +12,13 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -21,6 +28,7 @@ const navigation = [
 
 export default function Layout() {
   const location = useLocation()
+  const { signOut, user } = useAuth()
 
   return (
     <SidebarProvider>
@@ -73,10 +81,26 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <CircleUser className="h-5 w-5 text-slate-600" />
-              <span className="sr-only">Perfil do Usuário</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <CircleUser className="h-5 w-5 text-slate-600" />
+                  <span className="sr-only">Perfil do Usuário</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground truncate max-w-[200px]">
+                  {user?.email}
+                </div>
+                <DropdownMenuItem
+                  onClick={() => signOut()}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
