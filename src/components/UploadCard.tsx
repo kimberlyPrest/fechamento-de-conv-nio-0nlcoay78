@@ -3,17 +3,102 @@ import { FileSpreadsheet, CheckCircle2, Loader2, UploadCloud } from 'lucide-reac
 import { Card } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import * as XLSX from 'xlsx'
+import { supabase } from '@/lib/supabase/client'
+
+export type UploadType = 'pacientes' | 'procedimentos' | 'faturamento'
 
 interface UploadCardProps {
   title: string
   description?: string
   accept?: string
+  uploadType: UploadType
+  onSuccess?: () => void
+}
+
+function parseExcelDate(excelDate: any) {
+  if (!excelDate) return null
+  if (typeof excelDate === 'number') {
+    const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000))
+    return date.toISOString().split('T')[0]
+  }
+  if (typeof excelDate === 'string') {
+    if (excelDate.includes('/')) {
+      const parts = excelDate.split('/')
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+      }
+    }
+    if (excelDate.includes('-')) {
+      return excelDate.split('T')[0]
+    }
+  }
+  return null
+}
+
+function parseNumber(val: any) {
+  if (typeof val === 'number') return val
+  if (typeof val === 'string') {
+    let clean = val.replace(/[R$\s]/g, '')
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.')
+    } else if (clean.includes(',')) {
+      clean = clean.replace(',', '.')
+    }
+    return parseFloat(clean) || 0
+  }
+  return 0
+}
+
+const getVal = (row: any, keys: string[]) => {
+  const rowKeys = Object.keys(row)
+  for (const k of rowKeys) {
+    if (keys.includes(k.trim())) {
+      return row[k]
+    }
+  }
+  return undefined
+}
+
+const mapProcedimentos = (data: any[]) => {
+  return data.map((row) => ({
+    data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
+    nome_procedimento: getVal(row, ['Procedimento'])?.toString(),
+    regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
+    face: getVal(row, ['Face'])?.toString(),
+    nome_paciente: getVal(row, ['Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+    valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio'])),
+  }))
+}
+
+const mapFaturamento = (data: any[]) => {
+  return data.map((row) => ({
+    matricula: getVal(row, ['Nº matrícula', 'Matrícula', 'Matricula', 'N matricula'])?.toString(),
+    nome_paciente: getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
+    procedimento_codigo: getVal(row, ['Procedimento'])?.toString(),
+    regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
+    face: getVal(row, ['Face'])?.toString(),
+    data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
+    repasse: parseNumber(getVal(row, ['Repasse'])),
+    co_participacao: parseNumber(getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao'])),
+  }))
+}
+
+const mapPacientes = (data: any[]) => {
+  return data.map((row) => ({
+    codigo: getVal(row, ['Código', 'Codigo'])?.toString(),
+    nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+    prestador: getVal(row, ['Prestador'])?.toString(),
+    telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
+  }))
 }
 
 export function UploadCard({
   title,
   description = 'Arraste ou clique para enviar',
   accept = '.xlsx, .xls',
+  uploadType,
+  onSuccess,
 }: UploadCardProps) {
   const [status, setStatus] = useState<'idle' | 'uploading' | 'success'>('idle')
   const [fileName, setFileName] = useState<string | null>(null)
@@ -26,22 +111,59 @@ export function UploadCard({
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     setFileName(file.name)
     setStatus('uploading')
 
-    // Simulate upload delay
-    setTimeout(() => {
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      const json = XLSX.utils.sheet_to_json(worksheet)
+
+      let mappedData: any[] = []
+      let tableName = ''
+
+      if (uploadType === 'procedimentos') {
+        mappedData = mapProcedimentos(json)
+        tableName = 'procedimentos_realizados'
+      } else if (uploadType === 'faturamento') {
+        mappedData = mapFaturamento(json)
+        tableName = 'faturamento_plano'
+      } else if (uploadType === 'pacientes') {
+        mappedData = mapPacientes(json)
+        tableName = 'pacientes'
+      }
+
+      if (mappedData.length > 0) {
+        const { error } = await supabase.from(tableName).insert(mappedData)
+        if (error) throw error
+      }
+
       setStatus('success')
       toast({
         title: 'Arquivo carregado com sucesso!',
         description: `O arquivo "${file.name}" foi processado.`,
         className: 'border-emerald-500 bg-emerald-50 text-emerald-900',
       })
-    }, 1500)
+      onSuccess?.()
+    } catch (error: any) {
+      console.error(error)
+      setStatus('idle')
+      toast({
+        title: 'Erro ao processar',
+        description: error.message || 'Verifique se o arquivo está no formato correto.',
+        variant: 'destructive',
+      })
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
   }
 
   return (

@@ -9,7 +9,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      faturamento_plano: {
+        Row: {
+          co_participacao: number | null
+          created_at: string
+          data_finalizacao: string | null
+          face: string | null
+          id: string
+          matricula: string | null
+          nome_paciente: string
+          plano: string | null
+          procedimento_codigo: string | null
+          regiao: string | null
+          repasse: number | null
+        }
+        Insert: {
+          co_participacao?: number | null
+          created_at?: string
+          data_finalizacao?: string | null
+          face?: string | null
+          id?: string
+          matricula?: string | null
+          nome_paciente: string
+          plano?: string | null
+          procedimento_codigo?: string | null
+          regiao?: string | null
+          repasse?: number | null
+        }
+        Update: {
+          co_participacao?: number | null
+          created_at?: string
+          data_finalizacao?: string | null
+          face?: string | null
+          id?: string
+          matricula?: string | null
+          nome_paciente?: string
+          plano?: string | null
+          procedimento_codigo?: string | null
+          regiao?: string | null
+          repasse?: number | null
+        }
+        Relationships: []
+      }
+      pacientes: {
+        Row: {
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          prestador: string | null
+          telefone: string | null
+        }
+        Insert: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          prestador?: string | null
+          telefone?: string | null
+        }
+        Update: {
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          prestador?: string | null
+          telefone?: string | null
+        }
+        Relationships: []
+      }
+      procedimentos_realizados: {
+        Row: {
+          created_at: string
+          data_finalizacao: string | null
+          face: string | null
+          id: string
+          nome_paciente: string
+          nome_procedimento: string | null
+          paciente_codigo: string | null
+          plano: string | null
+          procedimento_codigo: string | null
+          regiao: string | null
+          valor_convenio: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_finalizacao?: string | null
+          face?: string | null
+          id?: string
+          nome_paciente: string
+          nome_procedimento?: string | null
+          paciente_codigo?: string | null
+          plano?: string | null
+          procedimento_codigo?: string | null
+          regiao?: string | null
+          valor_convenio?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_finalizacao?: string | null
+          face?: string | null
+          id?: string
+          nome_paciente?: string
+          nome_procedimento?: string | null
+          paciente_codigo?: string | null
+          plano?: string | null
+          procedimento_codigo?: string | null
+          regiao?: string | null
+          valor_convenio?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -153,3 +263,57 @@ export const Constants = {
 // IMPORTANT: The TypeScript types above map UUID, TEXT, VARCHAR all to "string".
 // Use the COLUMN TYPES section below to know the real PostgreSQL type for each column.
 // Always use the correct PostgreSQL type when writing SQL migrations.
+
+// --- COLUMN TYPES (actual PostgreSQL types) ---
+// Use this to know the real database type when writing migrations.
+// "string" in TypeScript types above may be uuid, text, varchar, timestamptz, etc.
+// Table: faturamento_plano
+//   id: uuid (not null, default: gen_random_uuid())
+//   matricula: text (nullable)
+//   nome_paciente: text (not null)
+//   procedimento_codigo: text (nullable)
+//   regiao: text (nullable)
+//   face: text (nullable)
+//   data_finalizacao: date (nullable)
+//   repasse: numeric (nullable)
+//   co_participacao: numeric (nullable)
+//   plano: text (nullable)
+//   created_at: timestamp with time zone (not null, default: now())
+// Table: pacientes
+//   id: uuid (not null, default: gen_random_uuid())
+//   codigo: text (nullable)
+//   nome: text (not null)
+//   prestador: text (nullable)
+//   telefone: text (nullable)
+//   created_at: timestamp with time zone (not null, default: now())
+// Table: procedimentos_realizados
+//   id: uuid (not null, default: gen_random_uuid())
+//   paciente_codigo: text (nullable)
+//   nome_paciente: text (not null)
+//   procedimento_codigo: text (nullable)
+//   nome_procedimento: text (nullable)
+//   regiao: text (nullable)
+//   face: text (nullable)
+//   data_finalizacao: date (nullable)
+//   valor_convenio: numeric (nullable)
+//   plano: text (nullable)
+//   created_at: timestamp with time zone (not null, default: now())
+
+// --- CONSTRAINTS ---
+// Table: faturamento_plano
+//   PRIMARY KEY faturamento_plano_pkey: PRIMARY KEY (id)
+// Table: pacientes
+//   PRIMARY KEY pacientes_pkey: PRIMARY KEY (id)
+// Table: procedimentos_realizados
+//   PRIMARY KEY procedimentos_realizados_pkey: PRIMARY KEY (id)
+
+// --- ROW LEVEL SECURITY POLICIES ---
+// Table: faturamento_plano
+//   Policy "authenticated_all" (ALL, PERMISSIVE) roles={authenticated}
+//     USING: true
+// Table: pacientes
+//   Policy "authenticated_all" (ALL, PERMISSIVE) roles={authenticated}
+//     USING: true
+// Table: procedimentos_realizados
+//   Policy "authenticated_all" (ALL, PERMISSIVE) roles={authenticated}
+//     USING: true

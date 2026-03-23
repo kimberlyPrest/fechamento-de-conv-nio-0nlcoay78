@@ -20,8 +20,10 @@ const Index = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [procedimentos, setProcedimentos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => {
+  const fetchData = () => {
+    setLoading(true)
     supabase
       .from('procedimentos_realizados')
       .select('*')
@@ -30,7 +32,16 @@ const Index = () => {
         if (data && !error) setProcedimentos(data)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchData()
   }, [])
+
+  const handleUploadSuccess = () => {
+    fetchData()
+    setRefreshKey((prev) => prev + 1)
+  }
 
   const filteredData = useMemo(() => {
     const term = searchTerm.toLowerCase()
@@ -46,7 +57,6 @@ const Index = () => {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 animate-fade-in-up">
-      {/* Header Section */}
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           Conciliação de Faturamento
@@ -67,17 +77,27 @@ const Index = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 animate-fade-in">
-          {/* Uploads Section */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <UploadCard title="Pesquisa de Pacientes" description="Planilha do sistema (.xlsx)" />
+            <UploadCard
+              title="Pesquisa de Pacientes"
+              description="Planilha do sistema (.xlsx)"
+              uploadType="pacientes"
+              onSuccess={handleUploadSuccess}
+            />
             <UploadCard
               title="Produção por Procedimento"
               description="Relatório de execução (.xlsx)"
+              uploadType="procedimentos"
+              onSuccess={handleUploadSuccess}
             />
-            <UploadCard title="Faturamento do Convênio" description="Extrato do portal (.xlsx)" />
+            <UploadCard
+              title="Faturamento do Convênio"
+              description="Extrato do portal (.xlsx)"
+              uploadType="faturamento"
+              onSuccess={handleUploadSuccess}
+            />
           </div>
 
-          {/* Data Table Section */}
           <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm md:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -164,7 +184,7 @@ const Index = () => {
         </TabsContent>
 
         <TabsContent value="comparison" className="animate-fade-in">
-          <ComparisonTab />
+          <ComparisonTab refreshKey={refreshKey} />
         </TabsContent>
       </Tabs>
     </div>

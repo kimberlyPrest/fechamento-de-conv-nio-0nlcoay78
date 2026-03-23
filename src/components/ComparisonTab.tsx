@@ -12,12 +12,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/formatters'
 import { supabase } from '@/lib/supabase/client'
 
-export function ComparisonTab() {
+export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
   const [procedimentos, setProcedimentos] = useState<any[]>([])
   const [faturamentos, setFaturamentos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     Promise.all([
       supabase.from('procedimentos_realizados').select('*'),
       supabase.from('faturamento_plano').select('*'),
@@ -26,7 +27,7 @@ export function ComparisonTab() {
       if (fatRes.data) setFaturamentos(fatRes.data)
       setLoading(false)
     })
-  }, [])
+  }, [refreshKey])
 
   const discrepancies = useMemo(() => {
     return procedimentos
@@ -34,7 +35,8 @@ export function ComparisonTab() {
         const external = faturamentos.find(
           (e) =>
             e.nome_paciente === internal.nome_paciente &&
-            e.procedimento_codigo === internal.procedimento_codigo,
+            (e.procedimento_codigo === internal.procedimento_codigo ||
+              e.procedimento_codigo === internal.nome_procedimento),
         )
         const repasse = external?.repasse ?? 0
         const valor = Number(internal.valor_convenio ?? 0)
@@ -64,7 +66,6 @@ export function ComparisonTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Left Table: Nosso Fechamento */}
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg tracking-tight text-slate-900">
@@ -108,7 +109,6 @@ export function ComparisonTab() {
           </CardContent>
         </Card>
 
-        {/* Right Table: Faturamento do Plano */}
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg tracking-tight text-slate-900">
@@ -153,7 +153,6 @@ export function ComparisonTab() {
         </Card>
       </div>
 
-      {/* Divergências Table */}
       <Card className="border-red-100 shadow-sm">
         <CardHeader className="border-b border-red-100 bg-red-50/50 pb-4">
           <div className="flex items-center gap-2">
