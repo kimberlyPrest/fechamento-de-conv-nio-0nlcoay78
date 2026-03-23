@@ -51,7 +51,7 @@ DROP POLICY IF EXISTS "authenticated_all" ON public.faturamento_plano;
 CREATE POLICY "authenticated_all" ON public.faturamento_plano FOR ALL TO authenticated USING (true);
 
 -- Seed data block
-DO $
+DO $$
 DECLARE
   new_user_id uuid;
 BEGIN
@@ -95,4 +95,4 @@ BEGIN
     ('20000000-0000-0000-0000-000000000003'::uuid, 'MAT003', 'Beatriz Souza Campos', '85300011', 'Dente 28', 'N/A', '2023-10-16', 210.5, 0, 'Unimed')
   ON CONFLICT (id) DO NOTHING;
 
-END $;
+END $$;
