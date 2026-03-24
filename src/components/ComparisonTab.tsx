@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Loader2, Play } from 'lucide-react'
+import { AlertCircle, Loader2, Play, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import {
   Table,
   TableBody,
@@ -95,6 +96,63 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
     }
   }
 
+  const handleExportExcel = () => {
+    // 1. Nosso Fechamento
+    const nossoData = fechamento.map((r) => ({
+      Paciente: r.nome_paciente_exibicao,
+      Procedimento: r.nome_procedimento || r.procedimento_codigo,
+      'Valor (R$)': r.valor_convenio,
+    }))
+    const wsNosso = XLSX.utils.json_to_sheet(nossoData)
+
+    // 2. Faturamento do Plano
+    const fatData = faturamentos.map((r) => ({
+      Paciente: r.nome_paciente,
+      Procedimento: r.procedimento_codigo,
+      'Repasse (R$)': r.repasse,
+    }))
+    const wsFat = XLSX.utils.json_to_sheet(fatData)
+
+    // 3. Divergências
+    const divData = divergencias.map((r) => ({
+      Paciente: r.paciente,
+      Procedimento: r.procedimento,
+      'Nosso Valor (R$)': r.valor,
+      'Repasse Plano (R$)': r.repasse,
+      'Diferença (R$)': r.diferenca,
+    }))
+    const wsDiv = XLSX.utils.json_to_sheet(divData)
+
+    // Pinta de vermelho as células da coluna "Diferença" onde o valor for diferente de zero
+    const range = XLSX.utils.decode_range(wsDiv['!ref'] || 'A1:E1')
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      // Coluna 'Diferença (R$)' é a 5ª coluna (index 4)
+      const cellAddress = { c: 4, r: R }
+      const cellRef = XLSX.utils.encode_cell(cellAddress)
+      const cell = wsDiv[cellRef]
+
+      if (cell && typeof cell.v === 'number' && cell.v !== 0) {
+        cell.s = {
+          fill: {
+            patternType: 'solid',
+            fgColor: { rgb: 'FFFF0000' }, // Fundo vermelho
+          },
+          font: {
+            color: { rgb: 'FFFFFFFF' }, // Texto branco
+            bold: true,
+          },
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, wsNosso, 'Nosso Fechamento')
+    XLSX.utils.book_append_sheet(wb, wsFat, 'Faturamento do Plano')
+    XLSX.utils.book_append_sheet(wb, wsDiv, 'Divergências')
+
+    XLSX.writeFile(wb, 'Fechamento_Conciliacao.xlsx')
+  }
+
   if (!hasGenerated) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-16 text-center animate-fade-in">
@@ -124,18 +182,34 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold tracking-tight text-slate-900">
           Resultados da Conciliação
         </h2>
-        <Button onClick={handleGerarFechamento} disabled={isGenerating} variant="outline" size="sm">
-          {isGenerating ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          Regerar Fechamento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleExportExcel}
+            variant="outline"
+            size="sm"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar Fechamento (.xlsx)
+          </Button>
+          <Button
+            onClick={handleGerarFechamento}
+            disabled={isGenerating}
+            variant="outline"
+            size="sm"
+          >
+            {isGenerating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="mr-2 h-4 w-4" />
+            )}
+            Regerar Fechamento
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
