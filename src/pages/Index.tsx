@@ -81,11 +81,17 @@ const Index = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-8 animate-fade-in">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <UploadCard
               title="Pesquisa de Pacientes"
               description="Planilha do sistema (.xlsx)"
               uploadType="pacientes"
+              onSuccess={handleUploadSuccess}
+            />
+            <UploadCard
+              title="Pesquisar Procedimentos"
+              description="Lista de procedimentos (.xlsx)"
+              uploadType="pesquisa_procedimentos"
               onSuccess={handleUploadSuccess}
             />
             <UploadCard

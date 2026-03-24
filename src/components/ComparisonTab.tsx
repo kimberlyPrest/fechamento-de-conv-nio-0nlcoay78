@@ -116,10 +116,15 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
 
     // 4. Cruzamento para achar divergências (usando arrays filtrados)
     nossoFinal.forEach((n) => {
+      // Use the resolved patient name (from JOIN with pacientes table) when available
+      const nomeParaMatch = n.nome_paciente_exibicao || n.nome_paciente
+      // Match by patient name + procedure code + date
+      // Fallback: also try matching by procedure name if code is missing
       const match = fatFinal.find(
         (f) =>
-          f.nome_paciente === n.nome_paciente &&
-          f.procedimento_codigo === n.procedimento_codigo &&
+          f.nome_paciente === nomeParaMatch &&
+          (f.procedimento_codigo === n.procedimento_codigo ||
+            (!n.procedimento_codigo && f.procedimento_codigo === n.nome_procedimento)) &&
           f.data_finalizacao === n.data_finalizacao,
       )
 
