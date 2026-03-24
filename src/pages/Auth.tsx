@@ -31,8 +31,8 @@ export default function Auth() {
 
     if (error) {
       if (
-        error.message.includes('disabled') ||
-        error.message.includes('Email signups are disabled')
+        !isLogin &&
+        (error.message.includes('signups are disabled') || error.message.includes('disabled'))
       ) {
         toast({
           title: 'Cadastro indisponível',
@@ -41,6 +41,16 @@ export default function Auth() {
           variant: 'destructive',
         })
         setIsLogin(true)
+      } else if (
+        isLogin &&
+        (error.message.includes('logins are disabled') || error.message.includes('disabled'))
+      ) {
+        toast({
+          title: 'Login indisponível',
+          description:
+            'O login por e-mail e senha está temporariamente desativado no servidor. Por favor, aguarde a equipe técnica habilitá-lo.',
+          variant: 'destructive',
+        })
       } else {
         toast({
           title: 'Erro de Autenticação',
