@@ -30,11 +30,24 @@ export default function Auth() {
     const { error } = await action(email, password)
 
     if (error) {
-      toast({
-        title: 'Erro de Autenticação',
-        description: error.message,
-        variant: 'destructive',
-      })
+      if (
+        error.message.includes('disabled') ||
+        error.message.includes('Email signups are disabled')
+      ) {
+        toast({
+          title: 'Cadastro indisponível',
+          description:
+            'A criação de novas contas está desativada no momento. Seu usuário já foi provisionado pela equipe, por favor, faça o Login.',
+          variant: 'destructive',
+        })
+        setIsLogin(true)
+      } else {
+        toast({
+          title: 'Erro de Autenticação',
+          description: error.message,
+          variant: 'destructive',
+        })
+      }
     } else {
       toast({
         title: isLogin ? 'Login realizado com sucesso!' : 'Conta criada com sucesso!',
