@@ -321,6 +321,7 @@ export const Constants = {
 //   data_finalizacao: date (nullable)
 //   valor_convenio: numeric (nullable)
 //   plano: text (nullable)
+//   tratamento_id: text (nullable)
 //   created_at: timestamp with time zone (not null, default: now())
 //   tratamento_id: text (nullable)
 
