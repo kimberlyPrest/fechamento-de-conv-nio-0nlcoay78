@@ -164,7 +164,11 @@ const mapProcedimentos = (data: any[]) => {
     paciente_codigo: getVal(row, ['Paciente', 'Matricula'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
     // "Procedimento" here is the procedure NAME, not code
-    nome_procedimento: getVal(row, ['Procedimento', 'Nome do procedimento', 'Descrição'])?.toString(),
+    nome_procedimento: getVal(row, [
+      'Procedimento',
+      'Nome do procedimento',
+      'Descrição',
+    ])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     nome_paciente: getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
@@ -181,7 +185,11 @@ const mapPesquisaProcedimentos = (data: any[]) => {
   return data.map((row) => ({
     tratamento_id: normTratamento(getVal(row, ['Tratamento', 'Tratamento ID'])),
     procedimento_codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-    nome_procedimento: getVal(row, ['Nome do procedimento', 'Nome Procedimento', 'Descrição'])?.toString(),
+    nome_procedimento: getVal(row, [
+      'Nome do procedimento',
+      'Nome Procedimento',
+      'Descrição',
+    ])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
