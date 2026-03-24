@@ -55,25 +55,34 @@ export type Database = {
         Row: {
           codigo: string | null
           created_at: string
+          data_cadastro: string | null
           id: string
+          idade: number | null
           nome: string
           prestador: string | null
+          sexo: string | null
           telefone: string | null
         }
         Insert: {
           codigo?: string | null
           created_at?: string
+          data_cadastro?: string | null
           id?: string
+          idade?: number | null
           nome: string
           prestador?: string | null
+          sexo?: string | null
           telefone?: string | null
         }
         Update: {
           codigo?: string | null
           created_at?: string
+          data_cadastro?: string | null
           id?: string
+          idade?: number | null
           nome?: string
           prestador?: string | null
+          sexo?: string | null
           telefone?: string | null
         }
         Relationships: []
@@ -286,6 +295,9 @@ export const Constants = {
 //   prestador: text (nullable)
 //   telefone: text (nullable)
 //   created_at: timestamp with time zone (not null, default: now())
+//   sexo: text (nullable)
+//   idade: integer (nullable)
+//   data_cadastro: date (nullable)
 // Table: procedimentos_realizados
 //   id: uuid (not null, default: gen_random_uuid())
 //   paciente_codigo: text (nullable)

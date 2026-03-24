@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Loader2, Play, Download } from 'lucide-react'
+import { AlertCircle, Loader2, Play, Download, Filter } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import {
   Table,
@@ -11,6 +11,13 @@ import {
 } from '@/components/ui/table'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { formatCurrency } from '@/lib/formatters'
 import { supabase } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -18,94 +25,148 @@ import { cn } from '@/lib/utils'
 export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
+
+  // Dados brutos
+  const [rawProcedimentos, setRawProcedimentos] = useState<any[]>([])
+  const [rawPacientes, setRawPacientes] = useState<any[]>([])
+  const [rawFaturamentos, setRawFaturamentos] = useState<any[]>([])
+
+  // Estado dos filtros e tabelas
+  const [prestadores, setPrestadores] = useState<string[]>([])
+  const [selectedPrestador, setSelectedPrestador] = useState<string>('all')
   const [fechamento, setFechamento] = useState<any[]>([])
   const [faturamentos, setFaturamentos] = useState<any[]>([])
   const [divergencias, setDivergencias] = useState<any[]>([])
 
-  // Reseta o estado se um novo arquivo for enviado
+  // Busca inicial dos dados brutos
   useEffect(() => {
+    const fetchRawData = async () => {
+      setIsGenerating(true)
+      try {
+        const [procRes, pacRes, fatRes] = await Promise.all([
+          supabase.from('procedimentos_realizados').select('*'),
+          supabase.from('pacientes').select('*'),
+          supabase.from('faturamento_plano').select('*'),
+        ])
+
+        const pacs = pacRes.data || []
+        setRawProcedimentos(procRes.data || [])
+        setRawPacientes(pacs)
+        setRawFaturamentos(fatRes.data || [])
+
+        // Extrair prestadores únicos
+        const uniquePrestadores = Array.from(
+          new Set(pacs.map((p) => p.prestador).filter(Boolean)),
+        ).sort()
+        setPrestadores(uniquePrestadores as string[])
+      } catch (error) {
+        console.error('Erro ao buscar dados brutos:', error)
+      } finally {
+        setIsGenerating(false)
+      }
+    }
+
+    fetchRawData()
+
     if (refreshKey && refreshKey > 0) {
       setHasGenerated(false)
       setFechamento([])
       setFaturamentos([])
       setDivergencias([])
+      setSelectedPrestador('all')
     }
   }, [refreshKey])
 
-  const handleGerarFechamento = async () => {
-    setIsGenerating(true)
-    try {
-      const [procRes, pacRes, fatRes] = await Promise.all([
-        supabase.from('procedimentos_realizados').select('*'),
-        supabase.from('pacientes').select('*'),
-        supabase.from('faturamento_plano').select('*'),
-      ])
+  const processData = (prestadorFilter: string) => {
+    // 1. JOIN procedimentos com pacientes para trazer nome correto, prestador e telefone
+    const nossoFechamentoBase = rawProcedimentos.map((proc) => {
+      const paciente = rawPacientes.find((p) => p.codigo === proc.paciente_codigo)
+      return {
+        ...proc,
+        nome_paciente_exibicao: paciente ? paciente.nome : proc.nome_paciente,
+        prestador: paciente?.prestador || 'Não Informado',
+        telefone: paciente?.telefone || null,
+      }
+    })
 
-      const procedimentosData = procRes.data || []
-      const pacientesData = pacRes.data || []
-      const faturamentosData = fatRes.data || []
+    // 2. Enriquecer faturamentos deduzindo o prestador com base no matching
+    const faturamentosEnriquecidos = rawFaturamentos.map((fat) => {
+      const matchProc = nossoFechamentoBase.find(
+        (n) =>
+          n.nome_paciente === fat.nome_paciente &&
+          n.procedimento_codigo === fat.procedimento_codigo &&
+          n.data_finalizacao === fat.data_finalizacao,
+      )
+      return {
+        ...fat,
+        prestador: matchProc?.prestador || 'Não Informado',
+      }
+    })
 
-      // JOIN procedimentos_realizados e pacientes pelo código do paciente
-      const nossoFechamento = procedimentosData.map((proc) => {
-        const paciente = pacientesData.find((p) => p.codigo === proc.paciente_codigo)
-        return {
-          ...proc,
-          // Mantém o nome original se não encontrar correspondência no JOIN
-          nome_paciente_exibicao: paciente ? paciente.nome : proc.nome_paciente,
-        }
-      })
+    // 3. Filtrar pelo prestador selecionado
+    let nossoFinal = nossoFechamentoBase
+    let fatFinal = faturamentosEnriquecidos
 
-      const divs: any[] = []
+    if (prestadorFilter !== 'all') {
+      nossoFinal = nossoFechamentoBase.filter((n) => n.prestador === prestadorFilter)
+      fatFinal = faturamentosEnriquecidos.filter((f) => f.prestador === prestadorFilter)
+    }
 
-      // Cruza com faturamento_plano
-      nossoFechamento.forEach((n) => {
-        // Regra: nome do paciente + procedimento_codigo + data
-        const match = faturamentosData.find(
-          (f) =>
-            f.nome_paciente === n.nome_paciente &&
-            f.procedimento_codigo === n.procedimento_codigo &&
-            f.data_finalizacao === n.data_finalizacao,
-        )
+    const divs: any[] = []
 
-        const valorConvenio = Number(n.valor_convenio || 0)
-        const repasse = match ? Number(match.repasse || 0) : 0
-        const diferenca = Math.abs(valorConvenio - repasse)
+    // 4. Cruzamento para achar divergências (usando arrays filtrados)
+    nossoFinal.forEach((n) => {
+      const match = fatFinal.find(
+        (f) =>
+          f.nome_paciente === n.nome_paciente &&
+          f.procedimento_codigo === n.procedimento_codigo &&
+          f.data_finalizacao === n.data_finalizacao,
+      )
 
-        // Verifica discrepância > R$ 0,01
-        if (!match || diferenca > 0.01) {
-          divs.push({
-            id: n.id,
-            paciente: n.nome_paciente_exibicao,
-            procedimento: n.nome_procedimento || n.procedimento_codigo,
-            valor: valorConvenio,
-            repasse: repasse,
-            diferenca: valorConvenio - repasse,
-            highlight: diferenca > 0.01,
-          })
-        }
-      })
+      const valorConvenio = Number(n.valor_convenio || 0)
+      const repasse = match ? Number(match.repasse || 0) : 0
+      const diferenca = Math.abs(valorConvenio - repasse)
 
-      setFechamento(nossoFechamento)
-      setFaturamentos(faturamentosData)
-      setDivergencias(divs)
-      setHasGenerated(true)
-    } catch (error) {
-      console.error('Erro ao gerar fechamento:', error)
-    } finally {
-      setIsGenerating(false)
+      if (!match || diferenca > 0.01) {
+        divs.push({
+          id: n.id,
+          paciente: n.nome_paciente_exibicao,
+          prestador: n.prestador,
+          procedimento: n.nome_procedimento || n.procedimento_codigo,
+          valor: valorConvenio,
+          repasse: repasse,
+          diferenca: valorConvenio - repasse,
+          highlight: diferenca > 0.01,
+        })
+      }
+    })
+
+    setFechamento(nossoFinal)
+    setFaturamentos(fatFinal)
+    setDivergencias(divs)
+  }
+
+  const handleGerarFechamento = () => {
+    processData(selectedPrestador)
+    setHasGenerated(true)
+  }
+
+  const handlePrestadorChange = (val: string) => {
+    setSelectedPrestador(val)
+    if (hasGenerated) {
+      processData(val)
     }
   }
 
   const handleExportExcel = () => {
-    // 1. Nosso Fechamento
     const nossoData = fechamento.map((r) => ({
       Paciente: r.nome_paciente_exibicao,
+      Prestador: r.prestador,
       Procedimento: r.nome_procedimento || r.procedimento_codigo,
       'Valor (R$)': r.valor_convenio,
     }))
     const wsNosso = XLSX.utils.json_to_sheet(nossoData)
 
-    // 2. Faturamento do Plano
     const fatData = faturamentos.map((r) => ({
       Paciente: r.nome_paciente,
       Procedimento: r.procedimento_codigo,
@@ -113,9 +174,9 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
     }))
     const wsFat = XLSX.utils.json_to_sheet(fatData)
 
-    // 3. Divergências
     const divData = divergencias.map((r) => ({
       Paciente: r.paciente,
+      Prestador: r.prestador,
       Procedimento: r.procedimento,
       'Nosso Valor (R$)': r.valor,
       'Repasse Plano (R$)': r.repasse,
@@ -123,11 +184,10 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
     }))
     const wsDiv = XLSX.utils.json_to_sheet(divData)
 
-    // Pinta de vermelho as células da coluna "Diferença" onde o valor for diferente de zero
-    const range = XLSX.utils.decode_range(wsDiv['!ref'] || 'A1:E1')
+    // Formatação condicional para a coluna de Diferença (Index 5)
+    const range = XLSX.utils.decode_range(wsDiv['!ref'] || 'A1:F1')
     for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-      // Coluna 'Diferença (R$)' é a 5ª coluna (index 4)
-      const cellAddress = { c: 4, r: R }
+      const cellAddress = { c: 5, r: R }
       const cellRef = XLSX.utils.encode_cell(cellAddress)
       const cell = wsDiv[cellRef]
 
@@ -135,10 +195,10 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
         cell.s = {
           fill: {
             patternType: 'solid',
-            fgColor: { rgb: 'FFFF0000' }, // Fundo vermelho
+            fgColor: { rgb: 'FFFF0000' },
           },
           font: {
-            color: { rgb: 'FFFFFFFF' }, // Texto branco
+            color: { rgb: 'FFFFFFFF' },
             bold: true,
           },
         }
@@ -150,7 +210,11 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
     XLSX.utils.book_append_sheet(wb, wsFat, 'Faturamento do Plano')
     XLSX.utils.book_append_sheet(wb, wsDiv, 'Divergências')
 
-    XLSX.writeFile(wb, 'Fechamento_Conciliacao.xlsx')
+    let filename = 'Fechamento_Conciliacao'
+    if (selectedPrestador !== 'all') {
+      filename += `_${selectedPrestador.replace(/[^a-zA-Z0-9]/g, '_')}`
+    }
+    XLSX.writeFile(wb, `${filename}.xlsx`)
   }
 
   if (!hasGenerated) {
@@ -162,15 +226,35 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
         <h3 className="mb-2 text-xl font-semibold tracking-tight text-slate-900">
           Pronto para gerar o fechamento?
         </h3>
-        <p className="mb-8 max-w-md text-sm text-muted-foreground">
-          Clique no botão abaixo para processar os dados enviados. O sistema fará o cruzamento dos
-          procedimentos realizados com os repasses do convênio automaticamente.
+        <p className="mb-6 max-w-md text-sm text-muted-foreground">
+          Selecione um prestador abaixo (opcional) e clique no botão para cruzar os procedimentos
+          com os repasses automaticamente.
         </p>
+
+        <div className="mb-8 w-full max-w-xs text-left">
+          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+            Filtrar por Prestador
+          </label>
+          <Select value={selectedPrestador} onValueChange={setSelectedPrestador}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Todos os Prestadores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Prestadores</SelectItem>
+              {prestadores.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Button onClick={handleGerarFechamento} disabled={isGenerating} size="lg" className="w-64">
           {isGenerating ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Processando dados...
+              Carregando dados...
             </>
           ) : (
             <>Gerar Fechamento</>
@@ -183,9 +267,27 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-          Resultados da Conciliação
-        </h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+            Resultados da Conciliação
+          </h2>
+          <div className="flex items-center gap-2 border-slate-200 sm:ml-2 sm:border-l sm:pl-4">
+            <Filter className="hidden h-4 w-4 text-slate-400 sm:block" />
+            <Select value={selectedPrestador} onValueChange={handlePrestadorChange}>
+              <SelectTrigger className="h-9 w-[220px] bg-white">
+                <SelectValue placeholder="Todos os Prestadores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Prestadores</SelectItem>
+                {prestadores.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             onClick={handleExportExcel}
@@ -195,19 +297,6 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
           >
             <Download className="mr-2 h-4 w-4" />
             Exportar Fechamento (.xlsx)
-          </Button>
-          <Button
-            onClick={handleGerarFechamento}
-            disabled={isGenerating}
-            variant="outline"
-            size="sm"
-          >
-            {isGenerating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="mr-2 h-4 w-4" />
-            )}
-            Regerar Fechamento
           </Button>
         </div>
       </div>
@@ -220,11 +309,12 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border overflow-hidden">
+            <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="font-semibold text-slate-700">Paciente</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Prestador</TableHead>
                     <TableHead className="font-semibold text-slate-700">Procedimento</TableHead>
                     <TableHead className="text-right font-semibold text-slate-700">Valor</TableHead>
                   </TableRow>
@@ -232,8 +322,8 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
                 <TableBody>
                   {fechamento.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        Nenhum dado encontrado.
+                      <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                        Nenhum dado encontrado para o filtro atual.
                       </TableCell>
                     </TableRow>
                   )}
@@ -242,6 +332,7 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
                       <TableCell className="font-medium text-slate-900">
                         {row.nome_paciente_exibicao}
                       </TableCell>
+                      <TableCell className="text-slate-500 text-xs">{row.prestador}</TableCell>
                       <TableCell className="text-slate-600">
                         {row.nome_procedimento || row.procedimento_codigo}
                       </TableCell>
@@ -263,7 +354,7 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border overflow-hidden">
+            <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent">
@@ -278,7 +369,7 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
                   {faturamentos.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        Nenhum dado encontrado.
+                        Nenhum dado encontrado para o filtro atual.
                       </TableCell>
                     </TableRow>
                   )}
@@ -324,7 +415,7 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
         <CardContent className="pt-6">
           <div
             className={cn(
-              'rounded-md border overflow-hidden',
+              'overflow-hidden rounded-md border',
               divergencias.length > 0 ? 'border-red-100' : '',
             )}
           >
@@ -343,6 +434,14 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
                     )}
                   >
                     Paciente
+                  </TableHead>
+                  <TableHead
+                    className={cn(
+                      'font-semibold',
+                      divergencias.length > 0 ? 'text-red-800' : 'text-slate-700',
+                    )}
+                  >
+                    Prestador
                   </TableHead>
                   <TableHead
                     className={cn(
@@ -381,7 +480,7 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
               <TableBody>
                 {divergencias.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                       Nenhuma divergência encontrada. Valores compatíveis.
                     </TableCell>
                   </TableRow>
@@ -403,6 +502,14 @@ export function ComparisonTab({ refreshKey }: { refreshKey?: number }) {
                         )}
                       >
                         {row.paciente}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-xs',
+                          row.highlight ? 'text-red-800/80' : 'text-slate-500',
+                        )}
+                      >
+                        {row.prestador}
                       </TableCell>
                       <TableCell className={cn(row.highlight ? 'text-red-800' : 'text-slate-600')}>
                         {row.procedimento}
