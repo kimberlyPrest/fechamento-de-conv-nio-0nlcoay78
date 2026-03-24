@@ -62,12 +62,20 @@ const getVal = (row: any, keys: string[]) => {
 
 const mapProcedimentos = (data: any[]) => {
   return data.map((row) => ({
+    paciente_codigo: getVal(row, [
+      'Código',
+      'Cod',
+      'Matricula',
+      'Paciente Codigo',
+      'Codigo Paciente',
+    ])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
-    nome_procedimento: getVal(row, ['Procedimento'])?.toString(),
+    procedimento_codigo: getVal(row, ['Procedimento', 'Codigo Procedimento'])?.toString(),
+    nome_procedimento: getVal(row, ['Nome Procedimento', 'Descrição'])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face'])?.toString(),
     nome_paciente: getVal(row, ['Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
-    valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio'])),
+    valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio', 'Valor'])),
   }))
 }
 
@@ -86,7 +94,7 @@ const mapFaturamento = (data: any[]) => {
 
 const mapPacientes = (data: any[]) => {
   return data.map((row) => ({
-    codigo: getVal(row, ['Código', 'Codigo'])?.toString(),
+    codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
     nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
     prestador: getVal(row, ['Prestador'])?.toString(),
     telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
