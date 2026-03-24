@@ -18,10 +18,28 @@ interface UploadCardProps {
 
 // Keywords that identify a real header row vs a title row
 const HEADER_KEYWORDS = [
-  'Finalização', 'Finalizacao', 'Nome do paciente', 'Código', 'Codigo',
-  'Procedimento', 'Região', 'Regiao', 'Nome do procedimento', 'Nº matrícula',
-  'Marcação', 'Paciente', 'Val Cnv', 'Repasse', 'Nome',
-  'Sexo', 'Prestador', 'Telefone', 'Cadastro', 'Idade', 'Face(s)', 'Face',
+  'Finalização',
+  'Finalizacao',
+  'Nome do paciente',
+  'Código',
+  'Codigo',
+  'Procedimento',
+  'Região',
+  'Regiao',
+  'Nome do procedimento',
+  'Nº matrícula',
+  'Marcação',
+  'Paciente',
+  'Val Cnv',
+  'Repasse',
+  'Nome',
+  'Sexo',
+  'Prestador',
+  'Telefone',
+  'Cadastro',
+  'Idade',
+  'Face(s)',
+  'Face',
 ]
 
 /**
@@ -145,8 +163,7 @@ const mapProcedimentos = (data: any[]) => {
     ])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
-    nome_paciente:
-      getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
+    nome_paciente: getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
     valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio', 'Valor'])),
   }))
 }
@@ -176,22 +193,14 @@ const mapPesquisaProcedimentos = (data: any[]) => {
  */
 const mapFaturamento = (data: any[]) => {
   return data.map((row) => ({
-    matricula: getVal(row, [
-      'Nº matrícula',
-      'Matrícula',
-      'Matricula',
-      'N matricula',
-    ])?.toString(),
-    nome_paciente:
-      getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
+    matricula: getVal(row, ['Nº matrícula', 'Matrícula', 'Matricula', 'N matricula'])?.toString(),
+    nome_paciente: getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
     procedimento_codigo: getVal(row, ['Procedimento'])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
     repasse: parseNumber(getVal(row, ['Repasse'])),
-    co_participacao: parseNumber(
-      getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao']),
-    ),
+    co_participacao: parseNumber(getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao'])),
   }))
 }
 
@@ -203,8 +212,7 @@ const mapPacientes = (data: any[]) => {
     const idadeRaw = getVal(row, ['Idade', 'idade', 'Idade paciente', 'Idade Paciente'])
     return {
       codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-      nome:
-        getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+      nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
       prestador: getVal(row, ['Prestador'])?.toString(),
       telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
       sexo: getVal(row, ['Sexo', 'sexo', 'Genero', 'Gênero'])?.toString(),
