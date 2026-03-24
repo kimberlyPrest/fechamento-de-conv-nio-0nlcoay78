@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 import { supabase } from '@/lib/supabase/client'
 
-export type UploadType = 'pacientes' | 'procedimentos' | 'faturamento'
+export type UploadType = 'pacientes' | 'procedimentos' | 'pesquisa_procedimentos' | 'faturamento'
 
 interface UploadCardProps {
   title: string
@@ -14,6 +14,65 @@ interface UploadCardProps {
   accept?: string
   uploadType: UploadType
   onSuccess?: () => void
+}
+
+// Keywords that identify a real header row vs a title row
+const HEADER_KEYWORDS = [
+  'Finalização', 'Finalizacao', 'Nome do paciente', 'Código', 'Codigo',
+  'Procedimento', 'Região', 'Regiao', 'Nome do procedimento', 'Nº matrícula',
+  'Marcação', 'Paciente', 'Val Cnv', 'Repasse', 'Nome',
+  'Sexo', 'Prestador', 'Telefone', 'Cadastro', 'Idade', 'Face(s)', 'Face',
+]
+
+/**
+ * Reads an Excel worksheet robustly, handling sheets that have a title/metadata
+ * row at the top before the actual column headers.
+ */
+function parseSheet(worksheet: XLSX.WorkSheet): any[] {
+  const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, {
+    header: 1,
+    defval: '',
+  }) as any[][]
+
+  if (rawRows.length === 0) return []
+
+  // Find the row that contains the most recognized header keywords
+  let headerRowIdx = 0
+  let maxMatches = 0
+
+  for (let i = 0; i < Math.min(rawRows.length, 5); i++) {
+    const matches = (rawRows[i] as any[]).filter(
+      (cell: any) =>
+        typeof cell === 'string' &&
+        HEADER_KEYWORDS.some(
+          (kw) => cell.trim() === kw || cell.trim().toLowerCase() === kw.toLowerCase(),
+        ),
+    ).length
+    if (matches > maxMatches) {
+      maxMatches = matches
+      headerRowIdx = i
+    }
+  }
+
+  // Build column map: index → column name
+  const headerRow = rawRows[headerRowIdx] as any[]
+  const colMap: Record<number, string> = {}
+  headerRow.forEach((cell: any, idx: number) => {
+    const val = String(cell ?? '').trim()
+    if (val) colMap[idx] = val
+  })
+
+  // Convert data rows to objects, skipping completely empty rows
+  return rawRows
+    .slice(headerRowIdx + 1)
+    .map((row: any[]) => {
+      const obj: Record<string, any> = {}
+      row.forEach((cell: any, idx: number) => {
+        if (colMap[idx]) obj[colMap[idx]] = cell
+      })
+      return obj
+    })
+    .filter((obj) => Object.values(obj).some((v) => v !== '' && v !== null && v !== undefined))
 }
 
 function parseExcelDate(excelDate: any) {
@@ -61,9 +120,15 @@ const getVal = (row: any, keys: string[]) => {
   return undefined
 }
 
+// ─── MAPPERS ───────────────────────────────────────────────────────────────────
+
+/**
+ * "Produção por procedimento" — has procedure NAME, patient CODE, and values.
+ */
 const mapProcedimentos = (data: any[]) => {
   return data.map((row) => ({
     paciente_codigo: getVal(row, [
+      'Paciente',
       'Código',
       'Cod',
       'Matricula',
@@ -71,34 +136,75 @@ const mapProcedimentos = (data: any[]) => {
       'Codigo Paciente',
     ])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
-    procedimento_codigo: getVal(row, ['Procedimento', 'Codigo Procedimento'])?.toString(),
-    nome_procedimento: getVal(row, ['Nome Procedimento', 'Descrição'])?.toString(),
+    // In "Produção", the "Procedimento" column holds the procedure NAME, not code
+    nome_procedimento: getVal(row, [
+      'Procedimento',
+      'Nome do procedimento',
+      'Nome Procedimento',
+      'Descrição',
+    ])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
-    face: getVal(row, ['Face'])?.toString(),
-    nome_paciente: getVal(row, ['Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+    face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
+    nome_paciente:
+      getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
     valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio', 'Valor'])),
   }))
 }
 
-const mapFaturamento = (data: any[]) => {
+/**
+ * "Pesquisar procedimentos" — has procedure CODE + NAME, patient name. No values.
+ */
+const mapPesquisaProcedimentos = (data: any[]) => {
   return data.map((row) => ({
-    matricula: getVal(row, ['Nº matrícula', 'Matrícula', 'Matricula', 'N matricula'])?.toString(),
-    nome_paciente: getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
-    procedimento_codigo: getVal(row, ['Procedimento'])?.toString(),
+    procedimento_codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
+    nome_procedimento: getVal(row, [
+      'Nome do procedimento',
+      'Nome Procedimento',
+      'Descrição',
+    ])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
-    face: getVal(row, ['Face'])?.toString(),
+    face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
-    repasse: parseNumber(getVal(row, ['Repasse'])),
-    co_participacao: parseNumber(getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao'])),
+    nome_paciente:
+      getVal(row, ['Nome do paciente', 'Paciente', 'Nome'])?.toString() || 'Desconhecido',
+    valor_convenio: 0,
   }))
 }
 
+/**
+ * "Faturamento de convênio" — what the insurance plan actually paid.
+ */
+const mapFaturamento = (data: any[]) => {
+  return data.map((row) => ({
+    matricula: getVal(row, [
+      'Nº matrícula',
+      'Matrícula',
+      'Matricula',
+      'N matricula',
+    ])?.toString(),
+    nome_paciente:
+      getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
+    procedimento_codigo: getVal(row, ['Procedimento'])?.toString(),
+    regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
+    face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
+    data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
+    repasse: parseNumber(getVal(row, ['Repasse'])),
+    co_participacao: parseNumber(
+      getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao']),
+    ),
+  }))
+}
+
+/**
+ * "Pesquisa geral de pacientes" — full patient list.
+ */
 const mapPacientes = (data: any[]) => {
   return data.map((row) => {
     const idadeRaw = getVal(row, ['Idade', 'idade', 'Idade paciente', 'Idade Paciente'])
     return {
       codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-      nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+      nome:
+        getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
       prestador: getVal(row, ['Prestador'])?.toString(),
       telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
       sexo: getVal(row, ['Sexo', 'sexo', 'Genero', 'Gênero'])?.toString(),
@@ -106,12 +212,15 @@ const mapPacientes = (data: any[]) => {
         idadeRaw !== undefined && idadeRaw !== null && idadeRaw !== ''
           ? parseNumber(idadeRaw)
           : null,
+      // "Cadastro" is the exact column name in the patient spreadsheet
       data_cadastro: parseExcelDate(
-        getVal(row, ['Data Cadastro', 'Data de Cadastro', 'Data cadastro']),
+        getVal(row, ['Cadastro', 'Data Cadastro', 'Data de Cadastro', 'Data cadastro']),
       ),
     }
   })
 }
+
+// ─── COMPONENT ─────────────────────────────────────────────────────────────────
 
 export function UploadCard({
   title,
@@ -143,13 +252,18 @@ export function UploadCard({
       const workbook = XLSX.read(data, { type: 'array' })
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
-      const json = XLSX.utils.sheet_to_json(worksheet)
+
+      // Use robust parser that handles title rows
+      const json = parseSheet(worksheet)
 
       let mappedData: any[] = []
       let tableName = ''
 
       if (uploadType === 'procedimentos') {
         mappedData = mapProcedimentos(json)
+        tableName = 'procedimentos_realizados'
+      } else if (uploadType === 'pesquisa_procedimentos') {
+        mappedData = mapPesquisaProcedimentos(json)
         tableName = 'procedimentos_realizados'
       } else if (uploadType === 'faturamento') {
         mappedData = mapFaturamento(json)
@@ -160,14 +274,16 @@ export function UploadCard({
       }
 
       if (mappedData.length > 0) {
-        const { error } = await supabase.from(tableName).insert(mappedData)
+        const { error } = await supabase
+          .from(tableName as 'pacientes' | 'procedimentos_realizados' | 'faturamento_plano')
+          .insert(mappedData)
         if (error) throw error
       }
 
       setStatus('success')
       toast({
         title: 'Arquivo carregado com sucesso!',
-        description: `O arquivo "${file.name}" foi processado.`,
+        description: `"${file.name}" — ${mappedData.length} registro(s) importado(s).`,
         className: 'border-emerald-500 bg-emerald-50 text-emerald-900',
       })
       onSuccess?.()
