@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UploadCard } from '@/components/UploadCard'
 import { ComparisonTab } from '@/components/ComparisonTab'
+import { PacientesTab } from '@/components/PacientesTab'
 import { formatCurrency, formatDate } from '@/lib/formatters'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase/client'
@@ -67,12 +68,15 @@ const Index = () => {
       </div>
 
       <Tabs defaultValue="overview" className="w-full space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2 bg-slate-100/80 p-1">
-          <TabsTrigger value="overview" className="rounded-sm">
+        <TabsList className="grid h-auto w-full max-w-2xl grid-cols-1 gap-1 bg-slate-100/80 p-1 sm:h-10 sm:grid-cols-3">
+          <TabsTrigger value="overview" className="w-full rounded-sm">
             Visão Geral
           </TabsTrigger>
-          <TabsTrigger value="comparison" className="rounded-sm">
+          <TabsTrigger value="comparison" className="w-full rounded-sm">
             Comparação de Fechamento
+          </TabsTrigger>
+          <TabsTrigger value="pacientes" className="w-full rounded-sm">
+            Pacientes
           </TabsTrigger>
         </TabsList>
 
@@ -122,7 +126,7 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="rounded-md border overflow-hidden">
+            <div className="overflow-hidden rounded-md border">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="hover:bg-transparent">
@@ -156,7 +160,7 @@ const Index = () => {
                     filteredData.map((record) => (
                       <TableRow key={record.id} className="group cursor-default transition-colors">
                         <TableCell>
-                          <Badge variant="outline" className="font-medium bg-white">
+                          <Badge variant="outline" className="bg-white font-medium">
                             {record.plano || '-'}
                           </Badge>
                         </TableCell>
@@ -185,6 +189,10 @@ const Index = () => {
 
         <TabsContent value="comparison" className="animate-fade-in">
           <ComparisonTab refreshKey={refreshKey} />
+        </TabsContent>
+
+        <TabsContent value="pacientes" className="animate-fade-in">
+          <PacientesTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -45,7 +45,8 @@ function parseNumber(val: any) {
     } else if (clean.includes(',')) {
       clean = clean.replace(',', '.')
     }
-    return parseFloat(clean) || 0
+    const parsed = parseFloat(clean)
+    return isNaN(parsed) ? 0 : parsed
   }
   return 0
 }
@@ -93,12 +94,23 @@ const mapFaturamento = (data: any[]) => {
 }
 
 const mapPacientes = (data: any[]) => {
-  return data.map((row) => ({
-    codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-    nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
-    prestador: getVal(row, ['Prestador'])?.toString(),
-    telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
-  }))
+  return data.map((row) => {
+    const idadeRaw = getVal(row, ['Idade', 'idade', 'Idade paciente', 'Idade Paciente'])
+    return {
+      codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
+      nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+      prestador: getVal(row, ['Prestador'])?.toString(),
+      telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
+      sexo: getVal(row, ['Sexo', 'sexo', 'Genero', 'Gênero'])?.toString(),
+      idade:
+        idadeRaw !== undefined && idadeRaw !== null && idadeRaw !== ''
+          ? parseNumber(idadeRaw)
+          : null,
+      data_cadastro: parseExcelDate(
+        getVal(row, ['Data Cadastro', 'Data de Cadastro', 'Data cadastro']),
+      ),
+    }
+  })
 }
 
 export function UploadCard({
