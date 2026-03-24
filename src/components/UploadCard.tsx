@@ -351,8 +351,22 @@ export function UploadCard({
       } else if (uploadType === 'pacientes') {
         const mappedData = mapPacientes(json)
         if (mappedData.length > 0) {
-          const { error } = await supabase.from('pacientes').insert(mappedData)
-          if (error) throw error
+          // Upsert: atualiza pacientes existentes (por codigo) e insere novos.
+          // Registros sem codigo são sempre inseridos (não têm chave de conflito).
+          const comCodigo = mappedData.filter((p) => p.codigo)
+          const semCodigo = mappedData.filter((p) => !p.codigo)
+
+          if (comCodigo.length > 0) {
+            const { error } = await supabase
+              .from('pacientes')
+              .upsert(comCodigo, { onConflict: 'codigo', ignoreDuplicates: false })
+            if (error) throw error
+          }
+          if (semCodigo.length > 0) {
+            const { error } = await supabase.from('pacientes').insert(semCodigo)
+            if (error) throw error
+          }
+          toastMsg = `"${file.name}" — ${mappedData.length} paciente(s) sincronizado(s).`
         }
       }
 
