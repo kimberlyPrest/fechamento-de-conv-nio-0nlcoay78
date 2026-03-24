@@ -16,17 +16,19 @@ interface UploadCardProps {
   onSuccess?: () => void
 }
 
-// Keywords that identify a real header row vs a title row
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+/** Keywords that identify a real header row vs a title/metadata row */
 const HEADER_KEYWORDS = [
   'Finalização', 'Finalizacao', 'Nome do paciente', 'Código', 'Codigo',
   'Procedimento', 'Região', 'Regiao', 'Nome do procedimento', 'Nº matrícula',
   'Marcação', 'Paciente', 'Val Cnv', 'Repasse', 'Nome',
-  'Sexo', 'Prestador', 'Telefone', 'Cadastro', 'Idade', 'Face(s)', 'Face',
+  'Sexo', 'Prestador', 'Telefone', 'Cadastro', 'Idade', 'Face(s)', 'Face', 'Tratamento',
 ]
 
 /**
  * Reads an Excel worksheet robustly, handling sheets that have a title/metadata
- * row at the top before the actual column headers.
+ * row at the top before the actual column headers (e.g. "Prestador: Dara...").
  */
 function parseSheet(worksheet: XLSX.WorkSheet): any[] {
   const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, {
@@ -120,53 +122,52 @@ const getVal = (row: any, keys: string[]) => {
   return undefined
 }
 
-// ─── MAPPERS ───────────────────────────────────────────────────────────────────
+/**
+ * Normalizes a treatment ID for matching between sheets.
+ * "003280" and "0003280" both become "3280".
+ */
+function normTratamento(id: any): string {
+  if (!id) return ''
+  const s = String(id).trim()
+  const n = parseInt(s.replace(/\D/g, ''), 10)
+  return isNaN(n) ? s : String(n)
+}
+
+// ─── MAPPERS ──────────────────────────────────────────────────────────────────
 
 /**
- * "Produção por procedimento" — has procedure NAME, patient CODE, and values.
+ * "Produção por procedimento"
+ * Has: procedure NAME, patient CODE, treatment ID, and VALUES.
+ * No procedure code, no patient name.
  */
 const mapProcedimentos = (data: any[]) => {
   return data.map((row) => ({
-    paciente_codigo: getVal(row, [
-      'Paciente',
-      'Código',
-      'Cod',
-      'Matricula',
-      'Paciente Codigo',
-      'Codigo Paciente',
-    ])?.toString(),
+    tratamento_id: normTratamento(getVal(row, ['Tratamento', 'Tratamento ID'])),
+    paciente_codigo: getVal(row, ['Paciente', 'Matricula'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
-    // In "Produção", the "Procedimento" column holds the procedure NAME, not code
-    nome_procedimento: getVal(row, [
-      'Procedimento',
-      'Nome do procedimento',
-      'Nome Procedimento',
-      'Descrição',
-    ])?.toString(),
+    // "Procedimento" here is the procedure NAME, not code
+    nome_procedimento: getVal(row, ['Procedimento', 'Nome do procedimento', 'Descrição'])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
-    nome_paciente:
-      getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
+    nome_paciente: 'Desconhecido',
     valor_convenio: parseNumber(getVal(row, ['Val Cnv', 'Valor Convenio', 'Valor'])),
   }))
 }
 
 /**
- * "Pesquisar procedimentos" — has procedure CODE + NAME, patient name. No values.
+ * "Pesquisar procedimentos"
+ * Has: procedure CODE + NAME, patient NAME, treatment ID.
+ * No financial values.
  */
 const mapPesquisaProcedimentos = (data: any[]) => {
   return data.map((row) => ({
+    tratamento_id: normTratamento(getVal(row, ['Tratamento', 'Tratamento ID'])),
     procedimento_codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-    nome_procedimento: getVal(row, [
-      'Nome do procedimento',
-      'Nome Procedimento',
-      'Descrição',
-    ])?.toString(),
+    nome_procedimento: getVal(row, ['Nome do procedimento', 'Nome Procedimento', 'Descrição'])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
-    nome_paciente:
-      getVal(row, ['Nome do paciente', 'Paciente', 'Nome'])?.toString() || 'Desconhecido',
+    nome_paciente: getVal(row, ['Nome do paciente', 'Nome'])?.toString() || 'Desconhecido',
     valor_convenio: 0,
   }))
 }
@@ -176,35 +177,26 @@ const mapPesquisaProcedimentos = (data: any[]) => {
  */
 const mapFaturamento = (data: any[]) => {
   return data.map((row) => ({
-    matricula: getVal(row, [
-      'Nº matrícula',
-      'Matrícula',
-      'Matricula',
-      'N matricula',
-    ])?.toString(),
-    nome_paciente:
-      getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
+    matricula: getVal(row, ['Nº matrícula', 'Matrícula', 'Matricula', 'N matricula'])?.toString(),
+    nome_paciente: getVal(row, ['Nome do paciente', 'Paciente'])?.toString() || 'Desconhecido',
     procedimento_codigo: getVal(row, ['Procedimento'])?.toString(),
     regiao: getVal(row, ['Região', 'Regiao'])?.toString(),
     face: getVal(row, ['Face(s)', 'Face', 'Faces'])?.toString(),
     data_finalizacao: parseExcelDate(getVal(row, ['Finalização', 'Finalizacao'])),
     repasse: parseNumber(getVal(row, ['Repasse'])),
-    co_participacao: parseNumber(
-      getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao']),
-    ),
+    co_participacao: parseNumber(getVal(row, ['Co-par', 'Co-participação', 'Coparticipacao'])),
   }))
 }
 
 /**
- * "Pesquisa geral de pacientes" — full patient list.
+ * "Pesquisa geral de pacientes" — full patient reference list.
  */
 const mapPacientes = (data: any[]) => {
   return data.map((row) => {
     const idadeRaw = getVal(row, ['Idade', 'idade', 'Idade paciente', 'Idade Paciente'])
     return {
       codigo: getVal(row, ['Código', 'Codigo', 'Cod'])?.toString(),
-      nome:
-        getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
+      nome: getVal(row, ['Nome', 'Paciente', 'Nome do paciente'])?.toString() || 'Desconhecido',
       prestador: getVal(row, ['Prestador'])?.toString(),
       telefone: getVal(row, ['Telefone', 'Celular'])?.toString(),
       sexo: getVal(row, ['Sexo', 'sexo', 'Genero', 'Gênero'])?.toString(),
@@ -212,12 +204,95 @@ const mapPacientes = (data: any[]) => {
         idadeRaw !== undefined && idadeRaw !== null && idadeRaw !== ''
           ? parseNumber(idadeRaw)
           : null,
-      // "Cadastro" is the exact column name in the patient spreadsheet
+      // Column is called "Cadastro" in the patient spreadsheet
       data_cadastro: parseExcelDate(
         getVal(row, ['Cadastro', 'Data Cadastro', 'Data de Cadastro', 'Data cadastro']),
       ),
     }
   })
+}
+
+// ─── MERGE LOGIC ──────────────────────────────────────────────────────────────
+
+/**
+ * Saves procedure data with merge: when the companion sheet has already been
+ * imported, enrich existing records instead of duplicating.
+ *
+ * "Pesquisar procedimentos" brings: procedure code, procedure name, patient name
+ * "Produção por procedimento" brings: patient code, values
+ * Both are linked by the "Tratamento" ID (normalized to remove leading zeros).
+ */
+async function saveProcedimentosComMerge(
+  mappedData: any[],
+  source: 'pesquisa' | 'producao',
+): Promise<{ inserted: number; updated: number }> {
+  // Fetch all existing procedure records
+  const { data: existentes, error: fetchError } = await supabase
+    .from('procedimentos_realizados')
+    .select('id, tratamento_id')
+
+  if (fetchError) throw fetchError
+
+  // Build lookup: normalized tratamento_id → DB record id
+  const existentesMap = new Map<string, string>()
+  existentes?.forEach((r) => {
+    const norm = normTratamento(r.tratamento_id)
+    if (norm) existentesMap.set(norm, r.id)
+  })
+
+  const toInsert: any[] = []
+  const toUpdate: Array<{ id: string; fields: Record<string, any> }> = []
+
+  for (const row of mappedData) {
+    const norm = normTratamento(row.tratamento_id)
+    const existingId = norm ? existentesMap.get(norm) : undefined
+
+    if (existingId) {
+      // Record already exists from the companion sheet — enrich it
+      if (source === 'pesquisa') {
+        // Add procedure code + patient name to what Produção inserted
+        toUpdate.push({
+          id: existingId,
+          fields: {
+            procedimento_codigo: row.procedimento_codigo,
+            nome_procedimento: row.nome_procedimento,
+            nome_paciente: row.nome_paciente,
+            regiao: row.regiao,
+            face: row.face,
+            data_finalizacao: row.data_finalizacao,
+          },
+        })
+      } else {
+        // source === 'producao': add value + patient code to what Pesquisar inserted
+        toUpdate.push({
+          id: existingId,
+          fields: {
+            valor_convenio: row.valor_convenio,
+            paciente_codigo: row.paciente_codigo,
+          },
+        })
+      }
+    } else {
+      toInsert.push(row)
+    }
+  }
+
+  // Batch updates (parallel)
+  if (toUpdate.length > 0) {
+    await Promise.all(
+      toUpdate.map(({ id, fields }) =>
+        supabase.from('procedimentos_realizados').update(fields).eq('id', id),
+      ),
+    )
+  }
+
+  // Batch insert
+  if (toInsert.length > 0) {
+    const { error } = await supabase.from('procedimentos_realizados').insert(toInsert)
+    if (error) throw error
+  }
+
+  return { inserted: toInsert.length, updated: toUpdate.length }
 }
 
 // ─── COMPONENT ─────────────────────────────────────────────────────────────────
@@ -253,37 +328,38 @@ export function UploadCard({
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
 
-      // Use robust parser that handles title rows
+      // Robust parser — handles title rows automatically
       const json = parseSheet(worksheet)
 
-      let mappedData: any[] = []
-      let tableName = ''
+      let totalRecords = json.length
+      let toastMsg = `"${file.name}" — ${totalRecords} registro(s) importado(s).`
 
       if (uploadType === 'procedimentos') {
-        mappedData = mapProcedimentos(json)
-        tableName = 'procedimentos_realizados'
+        const mappedData = mapProcedimentos(json)
+        const { inserted, updated } = await saveProcedimentosComMerge(mappedData, 'producao')
+        toastMsg = `"${file.name}" — ${inserted} novo(s), ${updated} enriquecido(s).`
       } else if (uploadType === 'pesquisa_procedimentos') {
-        mappedData = mapPesquisaProcedimentos(json)
-        tableName = 'procedimentos_realizados'
+        const mappedData = mapPesquisaProcedimentos(json)
+        const { inserted, updated } = await saveProcedimentosComMerge(mappedData, 'pesquisa')
+        toastMsg = `"${file.name}" — ${inserted} novo(s), ${updated} enriquecido(s).`
       } else if (uploadType === 'faturamento') {
-        mappedData = mapFaturamento(json)
-        tableName = 'faturamento_plano'
+        const mappedData = mapFaturamento(json)
+        if (mappedData.length > 0) {
+          const { error } = await supabase.from('faturamento_plano').insert(mappedData)
+          if (error) throw error
+        }
       } else if (uploadType === 'pacientes') {
-        mappedData = mapPacientes(json)
-        tableName = 'pacientes'
-      }
-
-      if (mappedData.length > 0) {
-        const { error } = await supabase
-          .from(tableName as 'pacientes' | 'procedimentos_realizados' | 'faturamento_plano')
-          .insert(mappedData)
-        if (error) throw error
+        const mappedData = mapPacientes(json)
+        if (mappedData.length > 0) {
+          const { error } = await supabase.from('pacientes').insert(mappedData)
+          if (error) throw error
+        }
       }
 
       setStatus('success')
       toast({
         title: 'Arquivo carregado com sucesso!',
-        description: `"${file.name}" — ${mappedData.length} registro(s) importado(s).`,
+        description: toastMsg,
         className: 'border-emerald-500 bg-emerald-50 text-emerald-900',
       })
       onSuccess?.()

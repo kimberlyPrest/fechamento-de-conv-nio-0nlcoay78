@@ -99,6 +99,7 @@ export type Database = {
           plano: string | null
           procedimento_codigo: string | null
           regiao: string | null
+          tratamento_id: string | null
           valor_convenio: number | null
         }
         Insert: {
@@ -112,6 +113,7 @@ export type Database = {
           plano?: string | null
           procedimento_codigo?: string | null
           regiao?: string | null
+          tratamento_id?: string | null
           valor_convenio?: number | null
         }
         Update: {
@@ -125,6 +127,7 @@ export type Database = {
           plano?: string | null
           procedimento_codigo?: string | null
           regiao?: string | null
+          tratamento_id?: string | null
           valor_convenio?: number | null
         }
         Relationships: []
@@ -309,6 +312,7 @@ export const Constants = {
 //   data_finalizacao: date (nullable)
 //   valor_convenio: numeric (nullable)
 //   plano: text (nullable)
+//   tratamento_id: text (nullable)
 //   created_at: timestamp with time zone (not null, default: now())
 
 // --- CONSTRAINTS ---
